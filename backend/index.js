@@ -23,9 +23,10 @@ app.use((req, res, next) => {
   let safeBody;
   if (req.method === 'POST' && req.body) {
     safeBody = { ...req.body };
-    // Redact purchaseToken - show only prefix
-    if (safeBody.purchaseToken) {
-      safeBody.purchaseToken = safeBody.purchaseToken.substring(0, Math.min(10, safeBody.purchaseToken.length)) + '...[REDACTED]';
+    // Redact purchaseToken completely - replace with fixed sentinel
+    // Don't call string methods (could crash on non-string) or retain any portion
+    if ('purchaseToken' in safeBody) {
+      safeBody.purchaseToken = '[REDACTED]';
     }
     // Allowlist only known safe fields
     const allowedFields = ['packageName', 'productId', 'productType', 'purchaseToken'];
