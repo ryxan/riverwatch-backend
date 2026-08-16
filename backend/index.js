@@ -30,28 +30,39 @@ app.use((req, res, next) => {
 // is valid — never trust the client's own opinion of its purchase state.
 app.post('/verify-purchase', async (req, res) => {
   const startTime = Date.now();
+  
+  // Validate req.body is an object before destructuring
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    console.error('Invalid request body - not an object');
+    console.log('=== Verification Failed (400) ===\n');
+    return res.status(400).json({ error: 'Invalid request body' });
+  }
+
   const { packageName, productId, purchaseToken, productType } = req.body;
+
+  // Validate all fields exist and are strings
+  const isValidString = (val) => typeof val === 'string' && val.length > 0;
+  
+  if (!isValidString(packageName) || !isValidString(productId) || 
+      !isValidString(purchaseToken) || !isValidString(productType)) {
+    const missing = [];
+    if (!isValidString(packageName)) missing.push('packageName');
+    if (!isValidString(productId)) missing.push('productId');
+    if (!isValidString(purchaseToken)) missing.push('purchaseToken');
+    if (!isValidString(productType)) missing.push('productType');
+    
+    console.error('Validation failed - invalid or missing fields:', missing);
+    console.log('=== Verification Failed (400) ===\n');
+    return res.status(400).json({ error: 'Missing or invalid required fields' });
+  }
 
   console.log('=== Purchase Verification Started ===');
   console.log('Request details:', {
     packageName,
     productId,
     productType,
-    tokenPrefix: purchaseToken ? purchaseToken.substring(0, 20) + '...' : 'missing',
+    tokenPrefix: purchaseToken.substring(0, Math.min(20, purchaseToken.length)) + '...',
   });
-
-  // Validate required fields
-  if (!packageName || !productId || !purchaseToken || !productType) {
-    const missing = [];
-    if (!packageName) missing.push('packageName');
-    if (!productId) missing.push('productId');
-    if (!purchaseToken) missing.push('purchaseToken');
-    if (!productType) missing.push('productType');
-
-    console.error('Validation failed - missing fields:', missing);
-    console.log('=== Verification Failed (400) ===\n');
-    return res.status(400).json({ error: 'Missing required fields' });
-  }
 
   try {
     console.log('Getting Google auth client...');
