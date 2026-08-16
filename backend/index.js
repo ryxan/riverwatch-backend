@@ -181,11 +181,27 @@ app.get('/health', (req, res) => {
 });
 
 const port = process.env.PORT || 3000;
-app.listen(port, () => {
+app.listen(port, async () => {
   console.log('===========================================');
   console.log(`RiverWatch backend listening on port ${port}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Database: ${process.env.DATABASE_URL ? 'Connected' : 'Not configured'}`);
+  
+  // Check database connectivity with timeout
+  let dbStatus = 'Not configured';
+  if (process.env.DATABASE_URL) {
+    try {
+      // Bounded readiness check with 5 second timeout
+      const result = await Promise.race([
+        pool.query('SELECT 1'),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+      ]);
+      dbStatus = 'Connected';
+    } catch (err) {
+      dbStatus = `Configured but unreachable (${err.message})`;
+    }
+  }
+  
+  console.log(`Database: ${dbStatus}`);
   console.log(`Service Account: ${process.env.GOOGLE_SERVICE_ACCOUNT_KEY ? 'Configured' : 'Not configured'}`);
   console.log('===========================================\n');
 });
