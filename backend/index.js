@@ -15,12 +15,30 @@ const auth = new google.auth.GoogleAuth({
 
 const androidpublisher = google.androidpublisher('v3');
 
-// Middleware to log all incoming requests
+// Middleware to log all incoming requests (with sensitive data redacted)
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
+  
+  // Redact sensitive fields from request body
+  let safeBody;
+  if (req.method === 'POST' && req.body) {
+    safeBody = { ...req.body };
+    // Redact purchaseToken - show only prefix
+    if (safeBody.purchaseToken) {
+      safeBody.purchaseToken = safeBody.purchaseToken.substring(0, Math.min(10, safeBody.purchaseToken.length)) + '...[REDACTED]';
+    }
+    // Allowlist only known safe fields
+    const allowedFields = ['packageName', 'productId', 'productType', 'purchaseToken'];
+    Object.keys(safeBody).forEach(key => {
+      if (!allowedFields.includes(key)) {
+        delete safeBody[key];
+      }
+    });
+  }
+  
   console.log(`[${timestamp}] ${req.method} ${req.path}`, {
-    body: req.method === 'POST' ? req.body : undefined,
-    query: Object.keys(req.query).length > 0 ? req.query : undefined,
+    body: safeBody,
+    queryKeys: Object.keys(req.query).length > 0 ? Object.keys(req.query) : undefined,
   });
   next();
 });
