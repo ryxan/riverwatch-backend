@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend          # expects a Dockerfile in ./backend
+    container_name: riverwatch-backend
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://riverwatch:${POSTGRES_PASSWORD}@postgres:5432/riverwatch
+      - GOOGLE_SERVICE_ACCOUNT_KEY=/run/secrets/google-service-account.json
+      - PORT=3000
+    volumes:
+      - ./secrets/google-service-account.json:/run/secrets/google-service-account.json:ro
+    depends_on:
+      - postgres
+    networks:
+      - riverwatch
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: riverwatch-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=riverwatch
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=riverwatch
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - riverwatch
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: riverwatch-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    depends_on:
+      - backend
+    networks:
+      - riverwatch
+
+volumes:
+  postgres_data:
+
+networks:
+  riverwatch:
+    driver: bridge
