@@ -126,8 +126,25 @@ app.post('/verify-purchase', async (req, res) => {
 
       console.log('Subscription verification result:', {
         subscriptionState: purchaseData.subscriptionState,
+        acknowledgementState: purchaseData.acknowledgementState,
         isValid,
       });
+
+      // Initial subscription purchases must be acknowledged within 3 days or Google refunds them
+      // Only renewals are exempt from acknowledgment
+      if (isValid && purchaseData.acknowledgementState === 'ACKNOWLEDGEMENT_STATE_PENDING') {
+        console.log('Initial subscription purchase needs acknowledgment, acknowledging...');
+        await androidpublisher.purchases.subscriptions.acknowledge({
+          auth: authClient,
+          packageName,
+          subscriptionId: productId,
+          token: purchaseToken,
+          requestBody: {},
+        });
+        console.log('Subscription acknowledged successfully');
+      } else if (purchaseData.acknowledgementState === 'ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED') {
+        console.log('Subscription already acknowledged (likely a renewal)');
+      }
     } else {
       console.log('Verifying in-app purchase...');
       const result = await androidpublisher.purchases.products.get({
