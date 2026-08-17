@@ -99,7 +99,30 @@ app.post('/verify-purchase', async (req, res) => {
         token: purchaseToken,
       });
       purchaseData = result.data;
-      isValid = purchaseData.subscriptionState === 'SUBSCRIPTION_STATE_ACTIVE';
+      
+      // Grant entitlement for active subscriptions, grace period, paused, and canceled-but-unexpired
+      // ACTIVE: normal active subscription
+      // IN_GRACE_PERIOD: payment failed but user still entitled during grace period
+      // PAUSED: user paused but still has access until expiry
+      // CANCELED: user canceled but still within paid period
+      const entitledStates = [
+        'SUBSCRIPTION_STATE_ACTIVE',
+        'SUBSCRIPTION_STATE_IN_GRACE_PERIOD',
+        'SUBSCRIPTION_STATE_PAUSED',
+        'SUBSCRIPTION_STATE_CANCELED',
+      ];
+      
+      isValid = entitledStates.includes(purchaseData.subscriptionState);
+      
+      // For CANCELED state, verify it hasn't expired yet by checking lineItems
+      if (isValid && purchaseData.subscriptionState === 'SUBSCRIPTION_STATE_CANCELED') {
+        const now = Date.now();
+        const hasUnexpiredItem = purchaseData.lineItems?.some(item => {
+          const expiryTime = item.expiryTime ? new Date(item.expiryTime).getTime() : 0;
+          return expiryTime > now;
+        });
+        isValid = hasUnexpiredItem;
+      }
 
       console.log('Subscription verification result:', {
         subscriptionState: purchaseData.subscriptionState,
